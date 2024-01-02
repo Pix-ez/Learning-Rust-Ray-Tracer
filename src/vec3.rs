@@ -7,8 +7,8 @@ pub struct Vec3 {
 }
 
 impl Vec3 {
-    pub fn new(e0: f32, e1: f32, e2: f32) -> Vec3 {
-        Vec3 { e: [e0, e1, e2] }
+    pub fn new(x: f32, y: f32, z: f32) -> Vec3 {
+        Vec3 { e: [x, y, z] }
     }
 
     pub fn x(self) -> f32 {

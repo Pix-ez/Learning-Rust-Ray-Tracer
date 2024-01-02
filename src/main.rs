@@ -1,21 +1,24 @@
 //import modules
-mod vec3;
-mod ray;
-mod sphere;
+mod camera;
 mod hittable;
 mod hittable_list;
 mod material;
-mod camera;
+mod ray;
+mod sphere;
+mod vec3;
 // use std::io;
 
-use raylib::prelude::*;
-use image::{Rgba, ImageBuffer, RgbaImage};
-use vec3::Vec3;
-use ray::Ray;
+
+
+use camera::Camera;
 use hittable::Hittable;
 use hittable_list::HittableList;
+use image::{Rgba, ImageBuffer, RgbaImage};
+use material::{scatter, Material};
+use ray::Ray;
+use raylib::prelude::*;
 use sphere::Sphere;
-use camera::Camera;
+use vec3::Vec3;
 
 
 
@@ -24,42 +27,85 @@ use rayon::prelude::*;
 use std::time;
 
 
-fn color(r:&Ray) -> Vec3{
-    let unit_direction = Vec3::unit_vector(&r.direction());
-    let t = 0.8*(unit_direction.y() + 1.0);
-
-    Vec3::new(1.0, 1.0, 1.0) * (1.0 - t) + Vec3::new(0.5, 0.7, 1.0)*t
-}
 
 
-fn random_in_unit_sphere()->Vec3 {
-    let mut p = Vec3::default();
-    let mut rng = rand::thread_rng();
+fn color(r: &Ray, world: &HittableList, depth: i32) -> Vec3 {
+    if let Some(rec) = world.hit(&r, 0.001, std::f32::MAX) {
+        let mut scattered = Ray::ray(Vec3::default(), Vec3::default());
+        let mut attentuation = Vec3::default();
 
-    loop {
-        p = 2.0 * Vec3::new(rng.gen::<f32>(), rng.gen::<f32>(), rng.gen::<f32>())
-                 - Vec3::new(1.0, 1.0, 1.0);
-
-        if p.squared_length() < 1.0 {
-            return  p;
+        if depth < 50 && scatter(&rec.material, r, &rec, &mut attentuation, &mut scattered) {
+            return attentuation * color(&scattered, world, depth + 1);
+        } else {
+            return Vec3::new(0.0, 0.0, 0.0);
         }
+    } else {
+        let unit_direction = Vec3::unit_vector(&r.direction());
+        let t = 0.5 * (unit_direction.y() + 1.0);
+
+        Vec3::new(1.0, 1.0, 1.0) * (1.0 - t) + Vec3::new(0.5, 0.7, 1.0) * t
     }
 }
 
 
-fn render(image_height: &u32,image_width: &u32, num_sample: &i32 )-> ImageBuffer<Rgba<u8>, Vec<u8>>{
+
+fn render(image_height: &u32, image_width: &u32, num_sample: &i32 )-> ImageBuffer<Rgba<u8>, Vec<u8>>{
     let mut buffer: RgbaImage = ImageBuffer::new(*image_width, *image_height);
 
-    let camera = Camera::camera();
+    // this is so helpful, https://stackoverflow.com/questions/46965867/rust-borrowed-value-must-be-valid-for-the-static-lifetime
+    let mut scene: Vec<Box<dyn Hittable>> = Vec::new();
 
     let mut rng = rand::thread_rng();
 
-    println!("{} ,{}", image_height ,image_width);
+    //Setup the scene with objects
 
-    // let lower_left_corner = Vec3::new(-2.0, -1.0, -1.0);
-    // let horizontal = Vec3::new(4.0, 0.0, 0.0);
-    // let vertical = Vec3::new(0.0, 2.0, 0.0);
-    // let origin = Vec3::new(0.0, 0.0, 0.0);
+    scene.push(Box::new(Sphere::sphere(
+        Vec3::new(0.0, 100.0, 0.0),
+        100.0,
+        Material::Lambertian {
+            albedo: Vec3::new(0.5, 0.5, 0.5),
+        },
+    )));
+
+    scene.push(Box::new(Sphere::sphere(
+        Vec3::new(0.0, -1.0, 0.0),
+        1.0,
+        Material::Lambertian {
+            albedo: Vec3::new(0.4, 0.2, 0.1),
+        },
+    )));
+
+    //init world and add the scene into it.
+    let world = HittableList::new(scene);
+
+    //setup the camera parameters and add camera.
+    let aspect_ratio = *image_width as f32 / *image_height as f32;
+    let look_from = Vec3::new(0.0, 0.0, 40.0);
+    let look_at = Vec3::new(0.0, 0.0, 0.0);
+    let vup = Vec3::new(0.0, 1.0, 0.0);
+
+    let dist_to_focus = 10.0;
+    let apeture = 0.1;
+
+    let cam = Camera::camera(
+        look_from,
+        look_at,
+        vup,
+        30.0,
+        aspect_ratio,
+        apeture,
+        dist_to_focus,
+    );
+
+    
+
+    // the "screen" is just a vector of rgb tuples for each pixel (width * height)
+    // let mut screen = vec![(0u32, 0u32, 0u32); *image_width as usize * *image_height as usize];
+    // let start = time::Instant::now();
+
+    // println!("{} ,{}", image_height ,image_width);
+
+
 
     for (x,  y, pixel) in buffer.enumerate_pixels_mut(){
 
@@ -71,19 +117,12 @@ fn render(image_height: &u32,image_width: &u32, num_sample: &i32 )-> ImageBuffer
             let v = (y as f32 + rng.gen::<f32>()) / (image_height-1) as f32;
 
             //let r = Ray::ray(*camera.origin(), camera.lower_left_corner() + camera.horizontal() * u +  camera.vertical() * v);
-            let r = &camera.get_ray(u, v);
-           
-            let col = col +color(&r);
+            let r = &cam.get_ray(u, v);
+            col = col + color(&r, &world, 0)
         }
-        
-        
-
 
         col = col / *num_sample as f32;
-        
-
-      
-        
+        col = Vec3::new(col.r().sqrt(), col.g().sqrt(), col.b().sqrt());
 
         let ir = (255.999 * col.r()) as u8;
         let ig = (255.999 * col.g()) as u8;
@@ -105,9 +144,9 @@ fn render(image_height: &u32,image_width: &u32, num_sample: &i32 )-> ImageBuffer
 
 fn main() {
     //Image dims
-    const IMAGE_HEIGHT:u32 = 720;
-    const IMAGE_WIDTH:u32 = 1280;
-    const NUM_SAMPLE:i32 = 10;
+    const IMAGE_WIDTH:u32 =  1280; //480;
+    const IMAGE_HEIGHT:u32 = 720; //480; 
+    const NUM_SAMPLE:i32 = 2;
 
     
 
@@ -160,8 +199,8 @@ fn main() {
 
     
 
-    let vec1:Vec3 = Vec3::new(6.3 ,8.3 ,6.4);
-    let vec2:Vec3 = Vec3::new(2.3 ,4.3 ,6.4);
+    // let vec1:Vec3 = Vec3::new(6.3 ,8.3 ,6.4);
+    // let vec2:Vec3 = Vec3::new(2.3 ,4.3 ,6.4);
 
     // let vec3 = vec1+vec2;
 
@@ -174,8 +213,3 @@ fn main() {
 
 
 
-// fn main() {
-
-
-//    
-// }
