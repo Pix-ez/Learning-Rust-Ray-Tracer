@@ -1,15 +1,25 @@
 //import modules
 mod vec3;
 mod ray;
-
-
+mod sphere;
+mod hittable;
+mod hittable_list;
+mod material;
 // use std::io;
 
 use raylib::prelude::*;
 use image::{Rgba, ImageBuffer, RgbaImage};
 use vec3::Vec3;
 use ray::Ray;
+use hittable::Hittable;
+use hittable_list::HittableList;
+use sphere::Sphere;
 
+
+
+use rand::prelude::*;
+use rayon::prelude::*;
+use std::time;
 
 
 fn color(r:&Ray) -> Vec3{
