@@ -5,6 +5,7 @@ mod sphere;
 mod hittable;
 mod hittable_list;
 mod material;
+mod camera;
 // use std::io;
 
 use raylib::prelude::*;
@@ -14,6 +15,7 @@ use ray::Ray;
 use hittable::Hittable;
 use hittable_list::HittableList;
 use sphere::Sphere;
+use camera::Camera;
 
 
 
@@ -29,24 +31,58 @@ fn color(r:&Ray) -> Vec3{
     Vec3::new(1.0, 1.0, 1.0) * (1.0 - t) + Vec3::new(0.5, 0.7, 1.0)*t
 }
 
-fn render(image_height: &u32,image_width: &u32 )-> ImageBuffer<Rgba<u8>, Vec<u8>>{
+
+fn random_in_unit_sphere()->Vec3 {
+    let mut p = Vec3::default();
+    let mut rng = rand::thread_rng();
+
+    loop {
+        p = 2.0 * Vec3::new(rng.gen::<f32>(), rng.gen::<f32>(), rng.gen::<f32>())
+                 - Vec3::new(1.0, 1.0, 1.0);
+
+        if p.squared_length() < 1.0 {
+            return  p;
+        }
+    }
+}
+
+
+fn render(image_height: &u32,image_width: &u32, num_sample: &i32 )-> ImageBuffer<Rgba<u8>, Vec<u8>>{
     let mut buffer: RgbaImage = ImageBuffer::new(*image_width, *image_height);
+
+    let camera = Camera::camera();
+
+    let mut rng = rand::thread_rng();
 
     println!("{} ,{}", image_height ,image_width);
 
-    let lower_left_corner = Vec3::new(-2.0, -1.0, -1.0);
-    let horizontal = Vec3::new(4.0, 0.0, 0.0);
-    let vertical = Vec3::new(0.0, 2.0, 0.0);
-    let origin = Vec3::new(0.0, 0.0, 0.0);
+    // let lower_left_corner = Vec3::new(-2.0, -1.0, -1.0);
+    // let horizontal = Vec3::new(4.0, 0.0, 0.0);
+    // let vertical = Vec3::new(0.0, 2.0, 0.0);
+    // let origin = Vec3::new(0.0, 0.0, 0.0);
 
     for (x,  y, pixel) in buffer.enumerate_pixels_mut(){
+
+        let mut col = Vec3::default();
+
+        for _ in 0..*num_sample{
+
+            let u = (x as f32 + rng.gen::<f32>()) / (image_width-1) as f32;
+            let v = (y as f32 + rng.gen::<f32>()) / (image_height-1) as f32;
+
+            //let r = Ray::ray(*camera.origin(), camera.lower_left_corner() + camera.horizontal() * u +  camera.vertical() * v);
+            let r = &camera.get_ray(u, v);
+           
+            let col = col +color(&r);
+        }
         
-        let u = x as f32 / (image_width-1) as f32;
-        let v = y as f32 / (image_height-1) as f32;
+        
 
-        let r = Ray::ray(origin, lower_left_corner + horizontal * u +  vertical * v);
 
-        let col = color(&r);
+        col = col / *num_sample as f32;
+        
+
+      
         
 
         let ir = (255.999 * col.r()) as u8;
@@ -71,6 +107,7 @@ fn main() {
     //Image dims
     const IMAGE_HEIGHT:u32 = 720;
     const IMAGE_WIDTH:u32 = 1280;
+    const NUM_SAMPLE:i32 = 10;
 
     
 
@@ -102,7 +139,7 @@ fn main() {
 
 
         // Convert RGBA image buffer to Raylib Image
-    let frame  = render(&IMAGE_HEIGHT, &IMAGE_WIDTH);
+    let frame  = render(&IMAGE_HEIGHT, &IMAGE_WIDTH , &NUM_SAMPLE);
     let image = rl.load_texture(&thread, "image.png").unwrap();
     // let buf:Vec<u8> = frame.iter().flat_map(|rgb| rgb.data.iter()).cloned().collect();
 
