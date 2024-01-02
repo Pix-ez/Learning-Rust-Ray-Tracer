@@ -104,7 +104,7 @@ fn main() {
             
                     
                     d.clear_background(Color::BLACK);
-                    d.draw_text("Ray Tracer in Rust", 12, 12, 20, Color::WHITE);
+                    // d.draw_text("Ray Tracer in Rust", 12, 12, 20, Color::WHITE);
                     d.draw_texture(&image, 40, 40, Color::WHITE);
                    
                     d.draw_fps(2, 3)
