@@ -1,5 +1,5 @@
 use rand::prelude::*;
-use std::ops;
+use std::{ops, iter::{Sum, self}};
 
 #[derive(Debug, Default, Copy, Clone, PartialEq)]
 pub struct Vec3 {
@@ -11,6 +11,10 @@ impl Vec3 {
         Vec3 { e: [x, y, z] }
     }
 
+   // Use iter directly on the array
+   pub fn iter(&self) -> std::slice::Iter<'_, f32> {
+    self.e.iter()
+}
     pub fn x(self) -> f32 {
         self.e[0]
     }
@@ -103,6 +107,7 @@ impl ops::Add for Vec3 {
         }
     }
 }
+
 
 impl ops::Sub for Vec3 {
     type Output = Self;
